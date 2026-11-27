@@ -1,9 +1,10 @@
 
 from core.ollama_client import OllamaClient
 
+
 class TestDesignAgent:
     """Uses a local LLM to design test scenarios from requirements."""
-    
+
     __test__ = False
 
     SUPPORTED_ACTIONS = {
@@ -25,6 +26,11 @@ class TestDesignAgent:
 
         ai_scenarios = ai_response.get("scenarios", [])
 
+        if not isinstance(ai_scenarios, list):
+            raise ValueError(
+                "AI response must contain a list of scenarios."
+            )
+
         if len(ai_scenarios) != len(requirements):
             raise ValueError(
                 "AI returned an unexpected number of scenarios. "
@@ -36,10 +42,42 @@ class TestDesignAgent:
         for index, requirement in enumerate(requirements):
             ai_scenario = ai_scenarios[index]
 
-            action = str(ai_scenario.get("action", "")).strip().lower()
+            if not isinstance(ai_scenario, dict):
+                raise ValueError(
+                    f"AI returned an invalid scenario for requirement "
+                    f"'{requirement['story_id']}'. Expected a JSON object."
+                )
+
+            action = str(
+                ai_scenario.get("action", "")
+            ).strip().lower()
 
             if action not in self.SUPPORTED_ACTIONS:
-                action = self._fallback_action(requirement)
+                raise ValueError(
+                    f"AI generated unsupported action '{action}' "
+                    f"for requirement '{requirement['story_id']}'. "
+                    f"Supported actions: {sorted(self.SUPPORTED_ACTIONS)}"
+                )
+
+            scenario_description = str(
+                ai_scenario.get("scenario", "")
+            ).strip()
+
+            expected_result = str(
+                ai_scenario.get("expected_result", "")
+            ).strip()
+
+            if not scenario_description:
+                raise ValueError(
+                    f"AI generated an empty scenario for requirement "
+                    f"'{requirement['story_id']}'."
+                )
+
+            if not expected_result:
+                raise ValueError(
+                    f"AI generated an empty expected result for requirement "
+                    f"'{requirement['story_id']}'."
+                )
 
             scenario_type = (
                 "Negative" if action == "invalid_login" else "Positive"
@@ -52,13 +90,9 @@ class TestDesignAgent:
                 "story_id": str(requirement["story_id"]).strip(),
                 "requirement_title": str(requirement["title"]).strip(),
                 "type": scenario_type,
-                "scenario": str(
-                    ai_scenario.get("scenario", "")
-                ).strip() or "Review generated scenario",
+                "scenario": scenario_description,
                 "action": action,
-                "expected_result": str(
-                    ai_scenario.get("expected_result", "")
-                ).strip() or "Expected result requires manual review.",
+                "expected_result": expected_result,
             })
 
         return scenarios
@@ -112,34 +146,8 @@ Rules:
 - Use only the three supported actions.
 - Do not include Markdown or explanations.
 - Make scenario descriptions specific to each requirement.
+- Every scenario must have a non-empty expected result.
 
 Requirements:
 {requirement_text}
 """
-    
-    def _fallback_action(self, requirement: dict) -> str:
-        """Use simple rules if the AI returns an unsupported action."""
-
-        text = (
-            f"{requirement.get('title', '')} "
-            f"{requirement.get('description', '')}"
-        ).lower()
-
-        if any(keyword in text for keyword in [
-            "logout",
-            "log out",
-            "sign out",
-            "end session",
-        ]):
-            return "logout"
-
-        if any(keyword in text for keyword in [
-            "invalid",
-            "incorrect",
-            "wrong password",
-            "failed login",
-            "unsuccessful login",
-        ]):
-            return "invalid_login"
-
-        return "valid_login"

@@ -7,9 +7,18 @@ from pathlib import Path
 
 
 class TestExecutionAgent:
-    """Executes generated Playwright tests using Pytest."""
+    """Executes generated tests and collects reliable execution metrics."""
 
     __test__ = False
+
+    TEST_STATUSES = (
+        "passed",
+        "failed",
+        "error",
+        "skipped",
+        "xfailed",
+        "xpassed",
+    )
 
     def __init__(self, tests_dir: str = "generated_tests"):
         self.tests_dir = Path(tests_dir)
@@ -20,7 +29,7 @@ class TestExecutionAgent:
                 f"Test directory not found: {self.tests_dir}"
             )
 
-        test_files = list(self.tests_dir.glob("test_*.py"))
+        test_files = sorted(self.tests_dir.glob("test_*.py"))
 
         if not test_files:
             raise ValueError(
@@ -33,41 +42,76 @@ class TestExecutionAgent:
             "pytest",
             str(self.tests_dir),
             "-v",
-            "--tb=short"
+            "--tb=short",
+            "--no-header",
         ]
 
         start_time = time.perf_counter()
 
-        result = subprocess.run(
-            command,
-            capture_output=True,
-            text=True
-        )
+        try:
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+        except subprocess.TimeoutExpired as exc:
+            duration = round(time.perf_counter() - start_time, 3)
+
+            return {
+                "total_test_files": len(test_files),
+                "total_tests": 0,
+                "passed_count": 0,
+                "failed_count": 0,
+                "error_count": 1,
+                "skipped_count": 0,
+                "xfailed_count": 0,
+                "xpassed_count": 0,
+                "duration_seconds": duration,
+                "return_code": 124,
+                "passed": False,
+                "execution_error": (
+                    "Pytest execution exceeded the 300-second timeout."
+                ),
+                "stdout": exc.stdout or "",
+                "stderr": exc.stderr or "",
+            }
 
         duration = round(time.perf_counter() - start_time, 3)
 
         output = result.stdout + "\n" + result.stderr
 
-        # Extract test counts from the pytest summary.
         counts = {
-            "passed": 0,
-            "failed": 0,
-            "error": 0,
-            "skipped": 0,
-            "xfailed": 0,
-            "xpassed": 0,
+            status: 0 for status in self.TEST_STATUSES
         }
 
-        for match in re.finditer(
-            r"(\d+)\s+(passed|failed|error|skipped|xfailed|xpassed)",
-            output,
-            re.IGNORECASE
-        ):
-            count = int(match.group(1))
-            status = match.group(2).lower()
-            counts[status] += count
+        summary_lines = [
+            line for line in output.splitlines()
+            if line.startswith("=") and " in " in line
+        ]
+
+        if summary_lines:
+            summary = summary_lines[-1]
+
+            for match in re.finditer(
+                r"(\d+)\s+(passed|failed|error|skipped|xfailed|xpassed)",
+                summary,
+                re.IGNORECASE,
+            ):
+                count = int(match.group(1))
+                status = match.group(2).lower()
+                counts[status] = count
 
         total_tests = sum(counts.values())
+
+        execution_error = None
+
+        if result.returncode != 0 and total_tests == 0:
+            execution_error = (
+                "Pytest did not complete successfully. "
+                "Check the execution output for collection or infrastructure errors."
+            )
 
         return {
             "total_test_files": len(test_files),
@@ -81,6 +125,7 @@ class TestExecutionAgent:
             "duration_seconds": duration,
             "return_code": result.returncode,
             "passed": result.returncode == 0,
+            "execution_error": execution_error,
             "stdout": result.stdout,
-            "stderr": result.stderr
+            "stderr": result.stderr,
         }
