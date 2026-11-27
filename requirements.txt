@@ -1,6 +1,8 @@
 
 pytest
 playwright
+pytest-playwright
+ollama
 pandas
 openpyxl
 python-dotenv
