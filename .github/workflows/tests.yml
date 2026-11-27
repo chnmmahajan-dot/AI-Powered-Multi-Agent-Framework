@@ -12,6 +12,9 @@ jobs:
   test:
     runs-on: ubuntu-latest
 
+    env:
+      PYTHONPATH: ${{ github.workspace }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -43,10 +46,10 @@ jobs:
 
       - name: Run automated tests
         run: |
-          pytest tests/test_requirement_reader.py \
-                 tests/test_test_generation_agent.py \
-                 tests/test_test_execution_agent.py \
-                 tests/test_demo_login.py -v
+          python -m pytest tests/test_requirement_reader.py \
+            tests/test_test_generation_agent.py \
+            tests/test_test_execution_agent.py \
+            tests/test_demo_login.py -v
 
       - name: Upload test reports
         if: always()
