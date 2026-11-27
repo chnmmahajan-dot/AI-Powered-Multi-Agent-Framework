@@ -15,14 +15,23 @@ def test_generate_test_scenarios():
     agent = TestDesignAgent()
     scenarios = agent.generate_test_scenarios(requirements)
 
-    # Three scenarios should be generated for each requirement.
-    assert len(scenarios) == len(requirements) * 3
+    # One relevant scenario should be generated for each requirement.
+    assert len(scenarios) == 3
 
-    # Verify the scenario categories.
+    # Verify scenario types.
     scenario_types = {scenario["type"] for scenario in scenarios}
-    assert scenario_types == {"Positive", "Negative", "Edge"}
+    assert scenario_types == {"Positive", "Negative"}
 
-    # Verify the first generated test case.
+    # Verify scenario IDs.
     assert scenarios[0]["test_case_id"] == "US001_TC001"
-    assert scenarios[0]["story_id"] == "US001"
-    assert scenarios[0]["type"] == "Positive"
+    assert scenarios[1]["test_case_id"] == "US002_TC001"
+    assert scenarios[2]["test_case_id"] == "US003_TC001"
+
+    # Verify generated actions.
+    actions = [scenario["action"] for scenario in scenarios]
+
+    assert actions == [
+        "valid_login",
+        "invalid_login",
+        "logout"
+    ]

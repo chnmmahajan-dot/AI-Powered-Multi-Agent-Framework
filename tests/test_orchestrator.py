@@ -16,8 +16,8 @@ def test_complete_automation_pipeline(tmp_path):
 
     # Verify the complete pipeline.
     assert result["requirements_count"] == 3
-    assert result["scenarios_count"] == 9
-    assert len(result["generated_files"]) == 9
+    assert result["scenarios_count"] == 3
+    assert len(result["generated_files"]) == 3
 
     # Verify all generated files exist.
     for file_path in result["generated_files"]:
@@ -29,3 +29,7 @@ def test_complete_automation_pipeline(tmp_path):
     content = first_file.read_text(encoding="utf-8")
 
     assert "def test_us001_tc001(page: Page):" in content
+
+    # Verify test execution succeeded.
+    assert result["execution_result"]["passed"] is True
+    assert result["execution_result"]["total_test_files"] == 3
