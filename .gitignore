@@ -5,6 +5,7 @@ __pycache__/
 *.pyo
 
 # Virtual environment
+.ven/
 .venv/
 venv/
 
@@ -19,6 +20,8 @@ venv/
 htmlcov/
 
 # Generated output
+generated_tests/*
+!generated_tests/.gitkeep
 reports/*
 !reports/.gitkeep
 logs/*
